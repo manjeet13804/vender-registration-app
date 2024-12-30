@@ -1,0 +1,8 @@
+[build]
+  command = "if cd build/web; then cd ../..; else flutter build web --release; fi"
+  publish = "build/web"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
