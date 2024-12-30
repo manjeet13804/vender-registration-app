@@ -1,8 +1,16 @@
 [build]
-  command = "if cd build/web; then cd ../..; else flutter build web --release; fi"
+  command = """
+    git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter && \
+    export PATH="$PATH:$HOME/flutter/bin" && \
+    flutter precache && \
+    flutter build web --release
+  """
   publish = "build/web"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[build.environment]
+  FLUTTER_VERSION = "stable"
