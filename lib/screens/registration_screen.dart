@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/vendor_provider.dart';
 import 'login_screen.dart';
+import 'otp_verification_screen.dart';
 
 class RegistrationScreen extends StatefulWidget {
   static const routeName = '/register';
+
+  const RegistrationScreen({Key? key}) : super(key: key);
 
   @override
   State<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -15,151 +17,114 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _referenceCodeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final List<TextEditingController> _otpControllers = List.generate(
-    6,
-    (index) => TextEditingController(),
-  );
-  final List<FocusNode> _otpFocusNodes = List.generate(
-    6,
-    (index) => FocusNode(),
-  );
-  
-  bool _isVerificationStep = false;
-  bool _isOtpSent = false;
+  final _phoneController = TextEditingController();
+  final _referenceCodeController = TextEditingController();
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  String? _errorMessage;
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
-    _referenceCodeController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    for (var controller in _otpControllers) {
-      controller.dispose();
-    }
-    for (var node in _otpFocusNodes) {
-      node.dispose();
-    }
+    _phoneController.dispose();
+    _referenceCodeController.dispose();
     super.dispose();
   }
 
-  void _sendOtp() {
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
-      _isOtpSent = true;
+      _isLoading = true;
+      _errorMessage = null;
     });
-  }
 
-  void _verifyPhone() {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isVerificationStep = true;
-      });
-    }
-  }
-
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      Provider.of<VendorProvider>(context, listen: false).registerVendor(
+    try {
+      final vendorProvider = Provider.of<VendorProvider>(context, listen: false);
+      await vendorProvider.registerVendor(
         _nameController.text,
         _emailController.text,
         _passwordController.text,
         _phoneController.text,
+        referenceCode: _referenceCodeController.text.isNotEmpty 
+            ? _referenceCodeController.text 
+            : null,
       );
-    }
-  }
 
-  Widget _buildOtpFields() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        6,
-        (index) => Container(
-          width: 40,
-          margin: EdgeInsets.symmetric(horizontal: 5),
-          child: TextField(
-            controller: _otpControllers[index],
-            focusNode: _otpFocusNodes[index],
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.number,
-            maxLength: 1,
-            decoration: InputDecoration(
-              counterText: "",
-              contentPadding: EdgeInsets.zero,
-              border: OutlineInputBorder(),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.red[800]!),
-              ),
-            ),
-            onChanged: (value) {
-              if (value.length == 1 && index < 5) {
-                _otpFocusNodes[index + 1].requestFocus();
-              }
-            },
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-          ),
-        ),
-      ),
-    );
+      if (!mounted) return;
+
+      // Navigate to OTP verification screen
+      Navigator.of(context).pushReplacementNamed(
+        OtpVerificationScreen.routeName,
+        arguments: {
+          'mobileNumber': _phoneController.text,
+          'isRegistration': true,
+        },
+      );
+    } catch (error) {
+      setState(() {
+        _errorMessage = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
-                  child: Image.asset(
-                    'assets/images/indiazona_logo.png',
-                    height: 80,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Center(
                   child: Text(
                     'Register Your Online Store',
-                    style: TextStyle(
-                      fontSize: 24,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Theme.of(context).primaryColor,
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue[800],
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 TextFormField(
                   controller: _referenceCodeController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Reference Code',
                     hintText: 'Enter the valid reference code, if applicable',
+                    helperText: 'Enter the valid reference code, if applicable. Otherwise, please leave it blank.',
+                    prefixIcon: Icon(Icons.tag),
                     border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 Text(
                   'Personal Info',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _nameController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Name *',
-                    hintText: 'Write your name here',
+                    hintText: 'Please write your name here',
+                    prefixIcon: Icon(Icons.person),
                     border: OutlineInputBorder(),
                   ),
                   validator: (value) {
@@ -169,14 +134,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _emailController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Email ID *',
                     hintText: 'abc@example.com',
+                    prefixIcon: Icon(Icons.email),
                     border: OutlineInputBorder(),
                   ),
+                  keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your email';
@@ -187,15 +154,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: TextFormField(
                         controller: _phoneController,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Mobile Number *',
-                          hintText: '+91 XXXXXXXXXX',
+                          hintText: '10-digit number',
+                          prefixIcon: Icon(Icons.phone),
+                          prefixText: '+91 ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.phone,
@@ -203,56 +172,87 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           if (value == null || value.isEmpty) {
                             return 'Please enter your mobile number';
                           }
-                          if (!RegExp(r'^\+91[0-9]{10}$').hasMatch(value)) {
-                            return 'Please enter a valid Indian mobile number';
+                          if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+                            return 'Please enter a valid 10-digit number';
                           }
                           return null;
                         },
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 16),
                     ElevatedButton(
-                      onPressed: !_isOtpSent ? _sendOtp : null,
-                      child: Text('Send OTP'),
+                      onPressed: _isLoading ? null : () async {
+                        if (_phoneController.text.isEmpty || 
+                            !RegExp(r'^\d{10}$').hasMatch(_phoneController.text)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter a valid 10-digit mobile number'),
+                            ),
+                          );
+                          return;
+                        }
+                        
+                        setState(() {
+                          _isLoading = true;
+                        });
+                        
+                        try {
+                          final vendorProvider = Provider.of<VendorProvider>(context, listen: false);
+                          await vendorProvider.sendOtp(_phoneController.text);
+                          
+                          if (!mounted) return;
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('OTP sent successfully'),
+                            ),
+                          );
+                        } catch (error) {
+                          if (!mounted) return;
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(error.toString()),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _isLoading = false;
+                            });
+                          }
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[800],
-                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Send OTP'),
                     ),
                   ],
                 ),
-                if (_isOtpSent) ...[
-                  const SizedBox(height: 20),
-                  Text('Enter OTP sent to your mobile number'),
-                  const SizedBox(height: 10),
-                  _buildOtpFields(),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: () => _sendOtp(),
-                        child: Text('Resend OTP'),
-                      ),
-                      ElevatedButton(
-                        onPressed: _verifyPhone,
-                        child: Text('Verify'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue[800],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'Create Password *',
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.visibility_off),
+                    prefixIcon: const Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _obscurePassword,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter a password';
@@ -263,15 +263,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _confirmPasswordController,
                   decoration: InputDecoration(
                     labelText: 'Confirm Password *',
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.visibility_off),
+                    prefixIcon: const Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _obscureConfirmPassword,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please confirm your password';
@@ -282,37 +286,43 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 30),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: _isVerificationStep ? _submitForm : null,
-                    child: Text('Next'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[800],
-                      padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Already Registered?'),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushReplacementNamed(context, LoginScreen.routeName);
-                        },
-                        child: Text(
-                          'Log In',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _register,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Next'),
                   ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Already Registered?'),
+                    TextButton(
+                      onPressed: () => Navigator.of(context)
+                          .pushReplacementNamed(LoginScreen.routeName),
+                      child: const Text('Log In'),
+                    ),
+                  ],
                 ),
               ],
             ),
